@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IvanBank — Stylish Demo Banking App</title>
+  <style>
+    /* Reset + fonts */
+    :root{
+      --bg:#081424; --card:#0d2538; --muted:#9fb4c4; --accent1:#7b61ff; --accent2:#00d4ff; --glass: rgba(255,255,255,0.04);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: radial-gradient(1200px 600px at 10% 10%, rgba(123,97,255,0.08), transparent), radial-gradient(1000px 500px at 90% 90%, rgba(0,212,255,0.04), transparent), var(--bg); color:#e6f1f8}
+
+    /* App shell */
+    .app{display:grid;grid-template-columns:320px 1fr;gap:28px;padding:28px;min-height:100vh}
+    .sidebar{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:20px;border-radius:18px;box-shadow:0 6px 30px rgba(0,0,0,0.6)}
+    .brand{display:flex;gap:12px;align-items:center;margin-bottom:18px}
+    .logo{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;color:#021227;font-size:20px}
+    .brand h1{margin:0;font-size:18px}
+    .nav{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+    .nav button{background:transparent;border:none;color:var(--muted);padding:12px;border-radius:10px;text-align:left;cursor:pointer;display:flex;gap:8px;align-items:center}
+    .nav button.active, .nav button:hover{background:var(--glass);color:#fff}
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), transparent);padding:18px;border-radius:14px}
+    .balance{display:flex;flex-direction:column;gap:6px}
+    .balance .amount{font-size:28px;font-weight:700}
+    .small{color:var(--muted);font-size:13px}
+
+    /* Main area */
+    .main{display:flex;flex-direction:column;gap:18px}
+    .topbar{display:flex;justify-content:space-between;gap:12px;align-items:center}
+    .search{flex:1;margin-right:12px}
+    .search input{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .profile{display:flex;gap:12px;align-items:center}
+    .avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent2),var(--accent1));display:flex;align-items:center;justify-content:center;font-weight:700}
+
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+    .wide{grid-column:span 2}
+
+    /* Transfer form */
+    form .row{display:flex;gap:10px;margin-top:10px}
+    input,select,textarea{padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;width:100%}
+    button.cta{background:linear-gradient(90deg,var(--accent1),var(--accent2));border:none;padding:12px 16px;border-radius:10px;color:#021227;font-weight:700;cursor:pointer}
+
+    /* Transaction list */
+    .tx-list{max-height:310px;overflow:auto;margin-top:12px}
+    .tx{display:flex;justify-content:space-between;gap:10px;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);margin-bottom:8px}
+    .tx .meta{display:flex;flex-direction:column}
+    .tx .right{display:flex;flex-direction:column;align-items:flex-end}
+    .credit{color:#8ee7a8}
+    .debit{color:#ff8b94}
+
+    /* Modals */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:flex;align-items:center;justify-content:center}
+    .modal{width:420px;background:linear-gradient(180deg, rgba(255,255,255,0.03), transparent);padding:20px;border-radius:14px}
+
+    /* Footer */
+    footer{color:var(--muted);font-size:12px;text-align:center;margin-top:18px}
+
+    /* Responsive */
+    @media(max-width:980px){.app{grid-template-columns:1fr;padding:16px}.grid{grid-template-columns:1fr}.sidebar{order:2}}
+
+    /* Tiny helper */
+    .muted{color:var(--muted)}
+
+    /* Glow pulse */
+    .pulse{position:relative}
+    .pulse::after{content:"";position:absolute;inset:-2px;border-radius:inherit;background:linear-gradient(90deg,var(--accent1),var(--accent2));filter:blur(18px);opacity:0.06}
+
+    /* CSV export link */
+    a.link{color:var(--accent2);text-decoration:underline;cursor:pointer}
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">IB</div>
+        <div>
+          <h1>IvanBank</h1>
+          <div class="small">Digital demo bank • Stylish UI</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="balance">
+          <div class="small">Your balance</div>
+          <div class="amount" id="sidebar-balance"></div>
+          <div class="small">Account: <span id="sidebar-account">Not signed in</span></div>
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px">
+          <button class="cta" id="open-transfer">Transfer</button>
+          <button id="open-random" style="flex:1;background:transparent;border:1px solid rgba(255,255,255,0.04);border-radius:10px;color:var(--muted);cursor:pointer">Quick gen</button>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="Main navigation">
+        <button class="active" data-view="dashboard">Dashboard</button>
+        <button data-view="history">Transfers</button>
+        <button data-view="profile">Profile</button>
+        <button data-view="settings">Settings</button>
+        <button id="sign-out">Sign out</button>
+      </nav>
+
+      <div style="height:18px"></div>
+      <div class="card small"><strong>Demo note:</strong> All data is stored locally in your browser (localStorage). This is a front-end demo only.</div>
+      <footer>Built for learning • No real money</footer>
+    </aside>
+
+    <main class="main">
+      <div class="topbar card">
+        <div style="display:flex;gap:12px;align-items:center;flex:1">
+          <div style="width:62px;font-size:12px;">Welcome to IvanBank</div>
+          <div class="search" style="flex:1"><input placeholder="Search transactions or contacts" id="search" /></div>
+        </div>
+        <div class="profile">
+          <div class="small muted" id="topbar-name">Guest</div>
+          <div class="avatar" id="topbar-avatar">G</div>
+        </div>
+      </div>
+
+      <section id="view-dashboard" class="grid">
+        <div class="card">
+          <h3>Quick actions</h3>
+          <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+            <button class="cta" id="open-transfer-2">Send money</button>
+            <button id="open-history" style="padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">View transfers</button>
+            <button id="export-csv" style="padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">Export CSV</button>
+            <button id="change-theme" style="padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">Toggle theme</button>
+          </div>
+
+          <div style="margin-top:14px" class="small muted">Recent transactions</div>
+          <div id="recent-tx" class="tx-list"></div>
+        </div>
+
+        <div class="card wide">
+          <h3>Make a transfer</h3>
+          <form id="transfer-form">
+            <div class="row">
+              <input id="to-email" placeholder="Recipient email" required />
+              <input id="amount" type="number" step="0.01" placeholder="Amount (₦)" required />
+            </div>
+            <div class="row">
+              <input id="to-name" placeholder="Recipient name (optional)" />
+              <select id="category"><option value="general">General</option><option value="bills">Bills</option><option value="gift">Gift</option><option value="loan">Loan</option></select>
+            </div>
+            <textarea id="note" rows="2" placeholder="Add a note (optional)" style="margin-top:10px"></textarea>
+            <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+              <button class="cta" type="submit">Send now</button>
+              <button type="button" id="schedule" style="padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">Schedule</button>
+              <div class="small muted" style="margin-left:auto">Fee: <span id="fee">₦0.00</span></div>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Accounts</h3>
+          <div id="account-list"></div>
+        </div>
+      </section>
+
+      <section id="view-history" class="card" style="display:none">
+        <h3>All transfers</h3>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <input id="filter-email" placeholder="Filter by email or name" />
+          <select id="filter-type"><option value="all">All</option><option value="in">Credit</option><option value="out">Debit</option></select>
+          <button id="apply-filter" class="cta">Apply</button>
+        </div>
+        <div class="tx-list" id="all-transactions" style="margin-top:12px"></div>
+      </section>
+
+      <section id="view-profile" class="card" style="display:none">
+        <h3>Profile</h3>
+        <div style="display:flex;gap:12px;margin-top:10px">
+          <div style="flex:1">
+            <div class="small muted">Full name</div>
+            <input id="profile-name" />
+            <div class="small muted" style="margin-top:8px">Email (can't change)</div>
+            <input id="profile-email" disabled />
+            <div class="small muted" style="margin-top:8px">Password</div>
+            <input id="profile-password" type="password" />
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button id="save-profile" class="cta">Save</button>
+              <button id="delete-account" style="padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--muted)">Delete</button>
+            </div>
+          </div>
+          <div style="width:220px">
+            <div class="small muted">Avatar</div>
+            <div style="height:120px;background:linear-gradient(135deg,var(--accent1),var(--accent2));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:700;margin-top:8px" id="profile-avatar">A</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="card" style="display:none">
+        <h3>Settings</h3>
+        <div style="margin-top:12px">
+          <label class="small muted">Currency</label>
+          <select id="currency"><option>NGN (₦)</option><option>USD ($)</option><option>EUR (€)</option></select>
+        </div>
+        <div style="margin-top:12px">
+          <label class="small muted">Theme</label>
+          <select id="theme-select"><option value="dark">Dark</option><option value="light">Light</option></select>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modals: Sign in / Sign up -->
+  <div id="modal-root"></div>
+
+  <script>
+    // Simple front-end banking demo using localStorage. Not production.
+    const LS_USERS = 'ib_users_v1';
+    const LS_SESSION = 'ib_current_email';
+
+    // Utilities
+    const $ = sel => document.querySelector(sel);
+    const el = (tag, props={}, ...children) => {
+      const e = document.createElement(tag);
+      Object.assign(e, props);
+      for (const c of children) if (typeof c === 'string') e.appendChild(document.createTextNode(c)); else if (c) e.appendChild(c);
+      return e;
+    }
+
+    function loadUsers(){return JSON.parse(localStorage.getItem(LS_USERS) || '[]')}
+    function saveUsers(u){localStorage.setItem(LS_USERS, JSON.stringify(u))}
+    function saveSession(email){localStorage.setItem(LS_SESSION, email)}
+    function clearSession(){localStorage.removeItem(LS_SESSION)}
+    function currentUser(){
+      const email = localStorage.getItem(LS_SESSION); if(!email) return null;
+      return loadUsers().find(x=>x.email===email) || null;
+    }
+
+    function formatCurrency(n){
+      const cur = document.getElementById('currency')?.value || 'NGN (₦)';
+      const symbol = cur.includes('NGN') ? '₦' : cur.includes('USD') ? '$' : '€';
+      return symbol + Number(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+    }
+
+    // Demo helpers: hash (not secure) and id
+    function tinyHash(s){return btoa(unescape(encodeURIComponent(s))).slice(0,12)}
+    function uid(){return 'tx_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)}
+
+    // Boot
+    function boot(){
+      // create demo user if none
+      if(loadUsers().length===0){
+        saveUsers([{name:'Test User',email:'ivan@example.com',password:tinyHash('password123'),balance:5000,transactions:[]}])
+      }
+      updateUI();
+      attachEvents();
+    }
+
+    // UI updates
+    function updateUI(){
+      const user = currentUser();
+      $('#sidebar-account').textContent = user ? user.email : 'Not signed in';
+      $('#sidebar-balance').textContent = user ? formatCurrency(user.balance) : '₦0.00';
+      $('#topbar-name').textContent = user ? user.name : 'Guest';
+      $('#topbar-avatar').textContent = user ? (user.name||'G').slice(0,1).toUpperCase() : 'G';
+      $('#profile-email').value = user ? user.email : '';
+      $('#profile-name').value = user ? user.name : '';
+      $('#profile-password').value = '';
+      $('#profile-avatar').textContent = user ? (user.name||'A').slice(0,1).toUpperCase() : 'A';
+
+      renderRecentTransactions();
+      renderAccountList();
+      renderAllTransactions();
+    }
+
+    function renderRecentTransactions(){
+      const out = $('#recent-tx'); out.innerHTML='';
+      const user = currentUser(); if(!user){out.innerHTML='<div class="muted">Sign in to see transactions</div>';return}
+      const list = (user.transactions||[]).slice().reverse().slice(0,6);
+      if(list.length===0) out.innerHTML='<div class="muted">No transactions yet</div>';
+      for(const t of list){
+        const d = el('div',{className:'tx'}, el('div',{className:'meta'}, el('strong',{},t.type==='out'?('Sent to '+(t.toName||t.to)):('From '+(t.fromName||t.from))), el('div',{className:'small muted'}, new Date(t.date).toLocaleString()), el('div',{className:'small muted'}, t.note||'') ), el('div',{className:'right'}, el('div',{}, t.type==='out' ? ('- '+formatCurrency(t.amount)) : ('+ '+formatCurrency(t.amount))), el('div',{className:'small muted '+(t.type==='out'?'debit':'credit')}, t.category || '')) );
+        out.appendChild(d);
+      }
+    }
+
+    function renderAccountList(){
+      const box = $('#account-list'); box.innerHTML='';
+      for(const u of loadUsers()){
+        const item = el('div',{className:'tx'}, el('div',{className:'meta'}, el('div',{},u.name), el('div',{className:'small muted'}, u.email) ), el('div',{className:'right'}, el('div',{}, formatCurrency(u.balance)), el('div',{className:'small muted'}, (u.transactions||[]).length+' tx')));
+        box.appendChild(item);
+      }
+    }
+
+    function renderAllTransactions(filter){
+      const container = $('#all-transactions'); container.innerHTML='';
+      const user = currentUser(); if(!user){container.innerHTML='<div class="muted">Sign in to see transactions</div>';return}
+      const list = (user.transactions||[]).slice().reverse();
+      let filtered = list;
+      if(filter){
+        if(filter.type && filter.type!=='all') filtered = filtered.filter(t => (filter.type==='in'? t.type==='in' : t.type==='out'));
+        if(filter.q) filtered = filtered.filter(t => (t.to && t.to.includes(filter.q)) || (t.toName && t.toName.includes(filter.q)) || (t.from && t.from.includes(filter.q)) || (t.fromName && t.fromName.includes(filter.q)) );
+      }
+      if(filtered.length===0) container.innerHTML='<div class="muted">No transfers found</div>';
+      for(const t of filtered){
+        const node = el('div',{className:'tx'}, el('div',{className:'meta'}, el('strong',{}, t.type==='out'?('To '+(t.toName||t.to)):('From '+(t.fromName||t.from))), el('div',{className:'small muted'}, new Date(t.date).toLocaleString()), el('div',{className:'small muted'}, t.note||'') ), el('div',{className:'right'}, el('div',{}, t.type==='out' ? ('- '+formatCurrency(t.amount)) : ('+ '+formatCurrency(t.amount))), el('div',{className:'small muted '+(t.type==='out'?'debit':'credit')}, t.category||'')) );
+        container.appendChild(node);
+      }
+    }
+
+    // Actions
+    function showModal(html){
+      const root = document.getElementById('modal-root'); root.innerHTML='';
+      const back = el('div',{className:'modal-backdrop'});
+      const modal = el('div',{className:'modal'});
+      modal.appendChild(html);
+      back.appendChild(modal);
+      root.appendChild(back);
+      back.addEventListener('click',(e)=>{if(e.target===back) root.innerHTML=''});
+    }
+
+    function signinModal(){
+      const box = el('div');
+      box.appendChild(el('h2',{},'Sign in'));
+      const form = el('form',{});
+      const email = el('input',{placeholder:'Email',required:true});
+      const pass = el('input',{placeholder:'Password',type:'password',required:true});
+      const submit = el('button',{className:'cta',type:'submit'},'Sign in');
+      const switcher = el('div',{className:'small muted',style:'margin-top:8px'}, el('span',{},"Don't have an account? "), el('a',{className:'link',onclick:()=>{rootCreateAccount();}}, 'Create one'));
+      form.appendChild(email); form.appendChild(pass); form.appendChild(el('div',{style:'margin-top:12px'} , submit));
+      box.appendChild(form); box.appendChild(switcher);
+
+      form.addEventListener('submit',e=>{e.preventDefault(); const u = loadUsers().find(x=>x.email===email.value); if(!u){alert('No account with that email');return} if(u.password !== tinyHash(pass.value)){alert('Wrong password');return} saveSession(u.email); document.getElementById('modal-root').innerHTML=''; updateUI();});
+      showModal(box);
+    }
+
+    function rootCreateAccount(){
+      const box = el('div'); box.appendChild(el('h2',{},'Create an account'));
+      const form = el('form',{});
+      const name = el('input',{placeholder:'Full name',required:true});
+      const email = el('input',{placeholder:'Email',required:true});
+      const pass = el('input',{placeholder:'Password',type:'password',required:true});
+      const seed = el('input',{placeholder:'Initial deposit (₦)',type:'number',value:0});
+      const submit = el('button',{className:'cta',type:'submit'},'Create account');
+      form.appendChild(name); form.appendChild(email); form.appendChild(pass); form.appendChild(seed); form.appendChild(el('div',{style:'margin-top:12px'},submit));
+      box.appendChild(form);
+      form.addEventListener('submit',e=>{
+        e.preventDefault(); const users = loadUsers(); if(users.find(x=>x.email===email.value)){alert('Email already registered');return}
+        const u = {name:name.value,email:email.value,password:tinyHash(pass.value),balance:Number(seed.value||0),transactions:[]}; users.push(u); saveUsers(users); saveSession(u.email); document.getElementById('modal-root').innerHTML=''; updateUI();
+      });
+      showModal(box);
+    }
+
+    // Transfer logic
+    document.addEventListener('submit', e=>{
+      if(e.target.id==='transfer-form'){
+        e.preventDefault(); const user = currentUser(); if(!user){alert('Sign in first'); return}
+        const to = $('#to-email').value.trim(); const amount = Number($('#amount').value); const toName = $('#to-name').value.trim(); const category = $('#category').value; const note = $('#note').value;
+        if(!to || amount<=0){alert('Invalid recipient or amount');return}
+        if(amount > user.balance){alert('Insufficient funds');return}
+        // debit user
+        user.balance -= amount;
+        const tx = {id:uid(),type:'out',to, toName, amount, date:Date.now(), note, category};
+        user.transactions = user.transactions || []; user.transactions.push(tx);
+        // credit recipient if exists
+        const users = loadUsers(); const recip = users.find(x=>x.email===to);
+        if(recip){recip.balance = (recip.balance||0) + amount; recip.transactions = recip.transactions || []; recip.transactions.push({id:uid(),type:'in',from:user.email,fromName:user.name,amount,date:Date.now(),note,category});
+          // persist replaced users array
+          const updated = users.map(u=>u.email===user.email?user:u.email===recip.email?recip:u);
+          saveUsers(updated);
+        } else {
+          // persist current user only
+          const updated = users.map(u=>u.email===user.email?user:u);
+          saveUsers(updated);
+        }
+        updateUI();
+        alert('Transfer successful');
+        e.target.reset();
+      }
+    });
+
+    // Attach other events
+    function attachEvents(){
+      // navigation
+      document.querySelectorAll('.nav button[data-view]').forEach(b=>b.addEventListener('click',()=>{
+        document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active')); b.classList.add('active');
+        const view = b.dataset.view; document.querySelectorAll('main section').forEach(s=>s.style.display='none'); document.getElementById('view-'+view).style.display='block';
+      }));
+
+      $('#open-transfer').addEventListener('click',()=>{document.querySelector('.nav button[data-view="history"]').click(); document.querySelector('#view-history').style.display='block';});
+      $('#open-transfer-2').addEventListener('click',()=>{document.querySelector('.nav button[data-view="dashboard"]').click(); window.scrollTo({top:0,behavior:'smooth'})});
+      $('#open-history').addEventListener('click',()=>{document.querySelector('.nav button[data-view="history"]').click();});
+
+      $('#export-csv').addEventListener('click',()=>{exportCSV();});
+      $('#open-random').addEventListener('click',()=>{quickGenerate();});
+
+      $('#sign-out').addEventListener('click',()=>{clearSession(); updateUI(); alert('Signed out');});
+
+      document.getElementById('search').addEventListener('input',e=>{renderAllTransactions({q:e.target.value,type:'all'})});
+
+      $('#apply-filter').addEventListener('click',()=>{renderAllTransactions({q:$('#filter-email').value,type:$('#filter-type').value})});
+
+      $('#save-profile').addEventListener('click',()=>{const user = currentUser(); if(!user){alert('Sign in first');return} user.name = $('#profile-name').value || user.name; const pw = $('#profile-password').value; if(pw) user.password = tinyHash(pw); const users = loadUsers().map(u=>u.email===user.email?user:u); saveUsers(users); updateUI(); alert('Profile saved')});
+
+      $('#delete-account').addEventListener('click',()=>{const user = currentUser(); if(!user) return; if(!confirm('Delete your account? This cannot be undone in this demo.')) return; const users = loadUsers().filter(u=>u.email!==user.email); saveUsers(users); clearSession(); updateUI(); alert('Account deleted')});
+
+      $('#open-transfer').addEventListener('click',()=>{signinModalIfNeeded()});
+      $('#open-transfer-2').addEventListener('click',()=>{signinModalIfNeeded()});
+
+      $('#change-theme').addEventListener('click',()=>{document.body.classList.toggle('light'); const isLight = document.body.classList.contains('light'); if(isLight){document.documentElement.style.setProperty('--bg','#f6fbff');document.documentElement.style.setProperty('--card','#ffffff');document.documentElement.style.setProperty('--muted','#5c6b75');document.documentElement.style.setProperty('--accent1','#6b46ff');document.documentElement.style.setProperty('--accent2','#00bcd4');document.documentElement.style.setProperty('--glass','rgba(2,6,23,0.03)')} else {document.documentElement.style.removeProperty('--bg');document.documentElement.style.removeProperty('--card');document.documentElement.style.removeProperty('--muted');document.documentElement.style.removeProperty('--accent1');document.documentElement.style.removeProperty('--accent2');document.documentElement.style.removeProperty('--glass'); }});
+
+      // quick actions that open sign-in/create
+      document.querySelectorAll('#modal-root .link');
+
+      // Show sign-in on load if no session
+      if(!currentUser()){
+        // show a tiny banner to sign in
+        setTimeout(()=>{
+          const root = document.getElementById('modal-root');
+          // show sign in modal only if user hasn't created one
+          if(!localStorage.getItem('ib_dismissed_welcome')) signinModal();
+        },500);
+      }
+
+      // Export CSV
+      function exportCSV(){const user = currentUser(); if(!user){alert('Sign in to export');return} const rows = [['id','type','date','amount','from','to','note','category']]; for(const t of user.transactions||[]){rows.push([t.id,t.type,new Date(t.date).toISOString(),t.amount,t.from||'',t.to||'',(t.note||'').replace(/\n/g,' '),t.category||''])}
+        const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n'); const blob = new Blob([csv],{type:'text/csv'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(user.email||'transactions')+'_transactions.csv'; a.click(); URL.revokeObjectURL(url);
+      }
+
+      // quick generate fake tx for demo
+      function quickGenerate(){
+        const users = loadUsers(); const me = currentUser() || users[0]; if(!me) return; const other = users.find(u=>u.email!==me.email) || {email:'random@demo',name:'Random'};
+        const amt = Math.round((Math.random()*2000)+50);
+        if(me.balance < amt) me.balance += amt; // top up if needed
+        me.balance -= amt; const tx = {id:uid(),type:'out',to:other.email,toName:other.name,amount:amt,date:Date.now(),note:'Quick demo payment',category:'general'}; me.transactions = me.transactions||[]; me.transactions.push(tx);
+        const recip = users.find(u=>u.email===other.email);
+        if(recip){recip.balance=(recip.balance||0)+amt; recip.transactions = recip.transactions||[]; recip.transactions.push({id:uid(),type:'in',from:me.email,fromName:me.name,amount:amt,date:Date.now(),note:'Received demo',category:'general'});
+          saveUsers(users.map(u=>u.email===me.email?me:u.email===recip.email?recip:u));
+        } else { saveUsers(users.map(u=>u.email===me.email?me:u)); }
+        updateUI();
+        alert('Generated demo transfer');
+      }
+
+    }
+
+    function signinModalIfNeeded(){ if(!currentUser()) signinModal(); else alert('You are signed in already') }
+
+    // tiny startup helper to open sign-in when clicking avatar
+    document.addEventListener('click', e=>{
+      const t = e.target;
+      if(t.id==='topbar-avatar' && !currentUser()) signinModal();
+      if(t.id==='topbar-avatar' && currentUser()) { document.querySelector('.nav button[data-view="profile"]').click(); }
+    })
+
+    // Start
+    boot();
+  </script>
+</body>
+</html>
